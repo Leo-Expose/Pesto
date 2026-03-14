@@ -1,0 +1,4 @@
+{
+  "stdout": "\n> pesto@0.2.0 build\n> cross-env NODE_OPTIONS=--require=./scripts/fs-patch.js next build --webpack\n\n",
+  "stderr": "\n> Build error occurred\nError: EPERM: operation not permitted, scandir 'E:\\Pesto\\.next\\types'\n    at ignore-listed frames {\n  errno: -4048,\n  code: 'EPERM',\n  syscall: 'scandir',\n  path: 'E:\\\\Pesto\\\\.next\\\\types'\n}\n"
+}
