@@ -23,11 +23,12 @@ export function ThemePicker({ themes, activeTheme, onSelect, loading }: ThemePic
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+    const handler = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setOpen(false)
       }
     }
+
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
@@ -38,21 +39,24 @@ export function ThemePicker({ themes, activeTheme, onSelect, loading }: ThemePic
     }
   }, [open])
 
-  const filtered = themes.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    t.id.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = themes.filter((theme) => {
+    const query = search.toLowerCase()
+    return theme.name.toLowerCase().includes(query) || theme.id.toLowerCase().includes(query)
+  })
 
-  const displayName = activeTheme === 'system' ? 'Auto' : themes.find((t) => t.id === activeTheme)?.name ?? activeTheme
+  const displayName =
+    activeTheme === 'system'
+      ? 'Auto'
+      : themes.find((theme) => theme.id === activeTheme)?.name ?? activeTheme
 
   return (
     <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium rounded-md bg-background/50 hover:bg-background border border-border text-foreground transition-colors"
+        className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-background/50 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
       >
         {loading ? (
-          <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
         ) : (
           <Paintbrush className="h-3.5 w-3.5" />
         )}
@@ -60,17 +64,16 @@ export function ThemePicker({ themes, activeTheme, onSelect, loading }: ThemePic
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-64 bg-popover border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
-          {/* Search */}
-          <div className="p-2 border-b border-border flex items-center gap-2">
-            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-64 overflow-hidden rounded-xl border border-border bg-popover shadow-2xl">
+          <div className="flex items-center gap-2 border-b border-border p-2">
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <input
               ref={searchRef}
               type="text"
-              placeholder="Search themes…"
+              placeholder="Search themes..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+              onChange={(event) => setSearch(event.target.value)}
+              className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />
             {search && (
               <button onClick={() => setSearch('')} className="text-muted-foreground hover:text-foreground">
@@ -79,18 +82,19 @@ export function ThemePicker({ themes, activeTheme, onSelect, loading }: ThemePic
             )}
           </div>
 
-          {/* System/Auto option */}
           <div className="border-b border-border">
             <button
-              onClick={() => { onSelect('system'); setOpen(false) }}
-              className="w-full px-3 py-2 text-xs text-left hover:bg-muted flex items-center justify-between font-medium"
+              onClick={() => {
+                onSelect('system')
+                setOpen(false)
+              }}
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium hover:bg-muted"
             >
               <span>Auto (Light / Dark)</span>
               {activeTheme === 'system' && <Check className="h-3 w-3 text-primary" />}
             </button>
           </div>
 
-          {/* Theme list */}
           <div className="max-h-64 overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="px-3 py-4 text-center text-xs text-muted-foreground">No themes found</div>
@@ -98,11 +102,14 @@ export function ThemePicker({ themes, activeTheme, onSelect, loading }: ThemePic
               filtered.map((theme) => (
                 <button
                   key={theme.id}
-                  onClick={() => { onSelect(theme.id); setOpen(false) }}
-                  className="w-full px-3 py-1.5 text-xs text-left hover:bg-muted flex items-center justify-between transition-colors"
+                  onClick={() => {
+                    onSelect(theme.id)
+                    setOpen(false)
+                  }}
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted"
                 >
                   <span className="truncate">{theme.name}</span>
-                  {activeTheme === theme.id && <Check className="h-3 w-3 text-primary shrink-0" />}
+                  {activeTheme === theme.id && <Check className="h-3 w-3 shrink-0 text-primary" />}
                 </button>
               ))
             )}

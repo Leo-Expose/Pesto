@@ -11,6 +11,8 @@ import { PasteViewer } from '@/components/paste/PasteViewer'
 import { PasswordPrompt } from '@/components/paste/PasswordPrompt'
 import { cookies, headers } from 'next/headers'
 import type { Metadata } from 'next'
+import { getAppSettings } from '@/lib/settings'
+import { isValidTheme } from '@/lib/themes'
 
 type Props = { params: Promise<{ alias: string }> }
 type RoleRow = { role: string | null }
@@ -86,14 +88,19 @@ export default async function PastePage({ params }: Props) {
     }
 
     const isMarkdown = paste.language === 'markdown'
+    const settings = await getAppSettings()
+    const defaultTheme = isValidTheme(settings.defaultTheme)
+      ? settings.defaultTheme
+      : 'github-dark'
     const htmlContent = isMarkdown
       ? renderMarkdown(paste.content)
-      : await highlight(paste.content, paste.language)
+      : await highlight(paste.content, paste.language, defaultTheme)
 
     return (
       <PasteViewer
         paste={paste}
         highlightedHtml={htmlContent}
+        initialTheme={isMarkdown ? 'system' : defaultTheme}
         isOwner={isOwner}
         isMarkdown={isMarkdown}
         isBurned={isBurned}

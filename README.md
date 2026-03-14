@@ -8,8 +8,9 @@ Pesto is a self-hosted pastebin built with Next.js, Auth.js, Drizzle ORM, and Po
 - Credentials auth with optional GitHub and Google OAuth
 - Admin dashboard for registrations, users, and provider toggles
 - Markdown rendering and syntax-highlighted code pastes
+- Instance-wide default syntax theme with per-paste theme switching
 - Password-protected and burn-after-reading pastes
-- Optional Upstash Redis rate limiting with in-memory fallback
+- Optional Upstash Redis-backed rate limiting for paste creation, with in-memory fallback
 
 ## Tech Stack
 
@@ -132,9 +133,18 @@ See [WIKI.md](/E:/Pesto/WIKI.md) and [SETUP.md](/E:/Pesto/SETUP.md) for full ope
 | `AUTH_GITHUB_SECRET` | GitHub OAuth client secret |
 | `AUTH_GOOGLE_ID` | Google OAuth client ID |
 | `AUTH_GOOGLE_SECRET` | Google OAuth client secret |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis token |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis URL for shared paste-create rate limiting |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis token for shared paste-create rate limiting |
 | `CRON_SECRET` | Secret for `/api/cron/cleanup` |
+
+## Themes
+
+Pesto supports two separate theme systems:
+
+- UI theme for the application chrome via the light/dark/system toggle
+- Syntax theme for code highlighting via Shiki
+
+The admin dashboard sets the instance default syntax theme. That default is used for initial paste rendering, version history previews, and server-side re-highlighting. Viewers can still switch an individual paste to another syntax theme from the paste toolbar without changing the global default.
 
 ### Setup-only variables
 

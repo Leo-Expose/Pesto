@@ -26,7 +26,6 @@ function createLimiter(
 
 const limiters = {
   pasteCreate: () => createLimiter(10, '1 m', 'rl:create'),
-  download: () => createLimiter(30, '1 h', 'rl:download'),
 }
 
 export async function withRateLimit(
@@ -51,8 +50,8 @@ export async function withRateLimit(
       )
     }
   } else {
-    const windowMs = type === 'pasteCreate' ? 60_000 : 3_600_000
-    const max = type === 'pasteCreate' ? 10 : 30
+    const windowMs = 60_000
+    const max = 10
     if (!checkRateLimit(`${type}:${identifier}`, max, windowMs)) {
       return Response.json(
         { error: 'Rate limit exceeded' },

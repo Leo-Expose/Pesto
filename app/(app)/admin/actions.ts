@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/auth'
 import { hash } from 'bcrypt-ts'
+import { isValidTheme } from '@/lib/themes'
 
 // --- Settings Actions ---
 
@@ -137,6 +138,7 @@ export async function updateInstanceSettings(data: {
 }) {
   const session = await auth()
   if (session?.user?.role !== 'admin') throw new Error('Unauthorized')
+  if (!isValidTheme(data.defaultTheme)) throw new Error('Invalid theme')
 
   await db.update(appSettings)
     .set({
@@ -147,4 +149,5 @@ export async function updateInstanceSettings(data: {
     .where(eq(appSettings.id, 'global'))
 
   revalidatePath('/admin')
+  revalidatePath('/p/[alias]', 'page')
 }

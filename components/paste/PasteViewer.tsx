@@ -21,19 +21,27 @@ interface Theme {
 interface PasteViewerProps {
   paste: PasteWithAuthor
   highlightedHtml: string
+  initialTheme: string
   isOwner: boolean
   isMarkdown?: boolean
   isBurned?: boolean
 }
 
-export function PasteViewer({ paste, highlightedHtml, isOwner, isMarkdown, isBurned }: PasteViewerProps) {
+export function PasteViewer({
+  paste,
+  highlightedHtml,
+  initialTheme,
+  isOwner,
+  isMarkdown,
+  isBurned,
+}: PasteViewerProps) {
   const [copied, setCopied] = useState<'content' | 'link' | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   
   // Theme state
   const [currentHtml, setCurrentHtml] = useState(highlightedHtml)
   const [themeLoading, setThemeLoading] = useState(false)
-  const [activeTheme, setActiveTheme] = useState('system')
+  const [activeTheme, setActiveTheme] = useState(initialTheme)
   const [themes, setThemes] = useState<Theme[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
 

@@ -1,21 +1,32 @@
-const fs = require("fs");
-const path = require("path");
-const { spawnSync } = require("child_process");
+const fsModule = import('node:fs')
+const pathModule = import('node:path')
+const childProcessModule = import('node:child_process')
+const urlModule = import('node:url')
 
-const rootDir = path.resolve(__dirname, "..");
-const standaloneServer = path.join(rootDir, ".next", "standalone", "server.js");
+async function main() {
+  const [{ default: fs }, { default: path }, { spawnSync }, { pathToFileURL }] =
+    await Promise.all([fsModule, pathModule, childProcessModule, urlModule])
 
-if (!fs.existsSync(standaloneServer)) {
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const build = spawnSync(npmCommand, ["run", "build"], {
-    cwd: rootDir,
-    stdio: "inherit",
-    env: process.env,
-  });
+  const rootDir = path.resolve(__dirname, '..')
+  const standaloneServer = path.join(rootDir, '.next', 'standalone', 'server.js')
 
-  if (build.status !== 0) {
-    process.exit(build.status ?? 1);
+  if (!fs.existsSync(standaloneServer)) {
+    const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+    const build = spawnSync(npmCommand, ['run', 'build'], {
+      cwd: rootDir,
+      stdio: 'inherit',
+      env: process.env,
+    })
+
+    if (build.status !== 0) {
+      process.exit(build.status ?? 1)
+    }
   }
+
+  await import(pathToFileURL(standaloneServer).href)
 }
 
-require(standaloneServer);
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})

@@ -44,4 +44,7 @@ export interface AppSettings {
   enableGithub: boolean
   enableGoogle: boolean
   setupCompleted: boolean
+  instanceName: string
+  defaultTheme: string
+  maxPasteSize: number
 }

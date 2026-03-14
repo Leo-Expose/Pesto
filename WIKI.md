@@ -216,8 +216,8 @@ AUTH_GITHUB_ID=""
 AUTH_GITHUB_SECRET=""
 AUTH_GOOGLE_ID=""
 AUTH_GOOGLE_SECRET=""
-UPSTASH_REDIS_REST_URL=""
-UPSTASH_REDIS_REST_TOKEN=""
+UPSTASH_REDIS_REST_URL="" # Optional shared paste-create rate limiting
+UPSTASH_REDIS_REST_TOKEN="" # Optional shared paste-create rate limiting
 CRON_SECRET=""
 ```
 

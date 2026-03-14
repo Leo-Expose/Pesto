@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm'
 import { getPasteByAlias, getPasteVersions, getPasteVersion } from '@/lib/paste'
 import { highlight } from '@/lib/highlight'
 import { NextRequest } from 'next/server'
+import { getAppSettings } from '@/lib/settings'
+import { isValidTheme } from '@/lib/themes'
 
 type RouteParams = { params: Promise<{ alias: string }> }
 type RoleRow = { role: string | null }
@@ -55,7 +57,11 @@ export async function GET(req: NextRequest, { params }: RouteParams): Promise<Re
         return Response.json({ error: 'Version not found' }, { status: 404 })
       }
 
-      const html = await highlight(version.content, version.language || 'text')
+      const settings = await getAppSettings()
+      const defaultTheme = isValidTheme(settings.defaultTheme)
+        ? settings.defaultTheme
+        : 'github-dark'
+      const html = await highlight(version.content, version.language || 'text', defaultTheme)
 
       return Response.json({
         version: {

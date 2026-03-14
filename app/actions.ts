@@ -8,6 +8,8 @@ import { cookies } from 'next/headers'
 import { highlight } from '@/lib/highlight'
 import { auth } from '@/auth'
 import type { InferSelectModel } from 'drizzle-orm'
+import { getAppSettings } from '@/lib/settings'
+import { isValidTheme } from '@/lib/themes'
 
 type UserRow = InferSelectModel<typeof users>
 
@@ -41,6 +43,10 @@ export async function verifyPastePassword(alias: string, password: string) {
 
 
 export async function rehighlightPaste(alias: string, theme: string) {
+  if (!isValidTheme(theme)) {
+    return { error: 'Invalid theme' }
+  }
+
   const paste = await db
     .select({ content: pastes.content, language: pastes.language })
     .from(pastes)
@@ -96,6 +102,11 @@ export async function rehighlightContent(content: string, language: string, them
   if (!content.trim()) return { html: '' }
   if (language === 'markdown') return { error: 'Use markdown preview instead' }
 
-  const html = await highlight(content, language, theme)
+  if (theme && !isValidTheme(theme)) {
+    return { error: 'Invalid theme' }
+  }
+
+  const resolvedTheme = theme ?? (await getAppSettings()).defaultTheme
+  const html = await highlight(content, language, resolvedTheme)
   return { html }
 }

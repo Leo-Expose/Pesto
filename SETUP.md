@@ -23,7 +23,7 @@ This separation prevents the setup wizard from staying available during ordinary
 - Node.js 20 or newer
 - npm
 - PostgreSQL 14 or newer
-- Optional: Upstash Redis
+- Optional: Upstash Redis for shared paste-create rate limiting across instances
 
 ## First-Time Local Install
 
@@ -165,8 +165,8 @@ This is separate from `SETUP_MODE=true`. Both are required to reopen setup after
 - `SETUP_TRUST_PROXY`
 - `SETUP_ALLOW_REMOTE`
 - `SETUP_REOPEN`
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
+- `UPSTASH_REDIS_REST_URL` for shared paste-create rate limiting
+- `UPSTASH_REDIS_REST_TOKEN` for shared paste-create rate limiting
 - `CRON_SECRET`
 
 ## Production Setup Procedure
