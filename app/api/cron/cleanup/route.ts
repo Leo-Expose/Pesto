@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { pastes } from '@/lib/db/schema'
-import { lt, isNotNull, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 
 export async function GET(req: Request): Promise<Response> {
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {

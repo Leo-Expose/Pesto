@@ -111,7 +111,7 @@ export async function createUser(formData: FormData) {
             password: hashedPassword,
             role: role || 'user'
         })
-    } catch(e) {
+    } catch {
         throw new Error("Failed to create user. Email might already be taken.")
     }
 

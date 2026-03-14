@@ -74,7 +74,7 @@ export function PasteViewer({ paste, highlightedHtml, isOwner, isMarkdown, isBur
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const createdAtValue = (paste as any).createdAt || paste.created_at || new Date().toISOString()
+  const createdAtValue = paste.createdAt || paste.created_at || new Date().toISOString()
   const createdAt = new Date(createdAtValue).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })

@@ -13,19 +13,34 @@ import { cookies, headers } from 'next/headers'
 import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ alias: string }> }
+type RoleRow = { role: string | null }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const { alias } = await params
     const paste = await getPasteByAlias(alias)
-    if (!paste) return { title: 'Not Found — Pesto' }
+    if (!paste) return { title: 'Not Found - Pesto' }
+
     return {
-      title: `${paste.title} — Pesto`,
+      title: `${paste.title} - Pesto`,
       description: `A ${paste.language} paste on Pesto`,
     }
-  } catch (error) {
-    return { title: 'Error — Pesto' }
+  } catch {
+    return { title: 'Error - Pesto' }
   }
+}
+
+async function getUserRole(userId: string | undefined): Promise<string> {
+  if (!userId) return 'user'
+
+  const profile = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+    .then((rows: RoleRow[]) => rows[0])
+
+  return profile?.role || 'user'
 }
 
 export default async function PastePage({ params }: Props) {
@@ -37,47 +52,34 @@ export default async function PastePage({ params }: Props) {
     const paste = await getPasteByAlias(alias, user?.id)
     if (!paste) notFound()
 
-    const pasteUserId = (paste as any).userId || (paste as any).user_id
+    const pasteUserId = paste.userId ?? paste.user_id
 
-    // Private paste check
     if (paste.visibility === 'private' && pasteUserId !== user?.id) {
-      let role = 'user'
-      if (user?.id) {
-        const profile = await db.select({ role: users.role }).from(users).where(eq(users.id, user.id)).limit(1).then((r: any[]) => r[0])
-        if (profile) role = profile.role || 'user'
-      }
+      const role = await getUserRole(user?.id)
       if (role !== 'admin') notFound()
     }
 
-    // Password paste check
     if (paste.visibility === 'password' && pasteUserId !== user?.id) {
       const cookieStore = await cookies()
       const hasAuth = cookieStore.get(`paste_${alias}_auth`)?.value === 'true'
-      
-      let role = 'user'
-      if (user?.id) {
-        const profile = await db.select({ role: users.role }).from(users).where(eq(users.id, user.id)).limit(1).then((r: any[]) => r[0])
-        if (profile) role = profile.role || 'user'
-      }
-        
+      const role = await getUserRole(user?.id)
+
       if (role !== 'admin' && !hasAuth) {
         return <PasswordPrompt alias={alias} />
       }
     }
 
-    const isOwner = user?.id && user.id === pasteUserId
+    const isOwner = user?.id === pasteUserId
 
-    // Burn after reading logic
     let isBurned = false
     if (paste.burn_after_reading && !isOwner) {
       const headersList = await headers()
-      const isPrefetch = 
-        headersList.get('next-router-prefetch') === '1' || 
+      const isPrefetch =
+        headersList.get('next-router-prefetch') === '1' ||
         headersList.get('purpose') === 'prefetch' ||
         headersList.get('x-nextjs-data') === '1'
-        
+
       if (!isPrefetch) {
-        // Trigger deletion
         await db.delete(pastes).where(eq(pastes.id, paste.id))
         isBurned = true
       }
@@ -92,17 +94,20 @@ export default async function PastePage({ params }: Props) {
       <PasteViewer
         paste={paste}
         highlightedHtml={htmlContent}
-        isOwner={!!isOwner}
+        isOwner={isOwner}
         isMarkdown={isMarkdown}
         isBurned={isBurned}
       />
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    const stack = error instanceof Error ? error.stack : ''
+
     return (
       <div className="p-10 text-red-500">
         <h1>500 Internal Server Error</h1>
-        <pre>{error.message}</pre>
-        <pre>{error.stack}</pre>
+        <pre>{message}</pre>
+        {stack ? <pre>{stack}</pre> : null}
       </div>
     )
   }

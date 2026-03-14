@@ -4,16 +4,22 @@ export type PasteExpiry = '1h' | '1d' | '7d' | '30d' | 'never'
 export interface Paste {
   id: string
   user_id: string | null
+  userId?: string | null
   title: string
   content: string
   language: string
   alias: string
   visibility: PasteVisibility
   password_hash?: string | null
+  passwordHash?: string | null
   burn_after_reading: boolean
+  burnAfterReading?: boolean
   forked_from: string | null
+  forkedFrom?: string | null
   expires_at: string | null
+  expiresAt?: string | null
   created_at: string
+  createdAt?: string
   views: number
 }
 

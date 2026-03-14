@@ -7,6 +7,9 @@ import { compare } from 'bcrypt-ts'
 import { cookies } from 'next/headers'
 import { highlight } from '@/lib/highlight'
 import { auth } from '@/auth'
+import type { InferSelectModel } from 'drizzle-orm'
+
+type UserRow = InferSelectModel<typeof users>
 
 export async function verifyPastePassword(alias: string, password: string) {
   const paste = await db
@@ -14,7 +17,7 @@ export async function verifyPastePassword(alias: string, password: string) {
     .from(pastes)
     .where(eq(pastes.alias, alias.toLowerCase()))
     .limit(1)
-    .then((res: any[]) => res[0])
+    .then((res: Array<{ passwordHash: string | null }>) => res[0])
     
   if (!paste || !paste.passwordHash) {
     return { error: 'Paste not found or not password protected' }
@@ -43,7 +46,7 @@ export async function rehighlightPaste(alias: string, theme: string) {
     .from(pastes)
     .where(eq(pastes.alias, alias.toLowerCase()))
     .limit(1)
-    .then((res: any[]) => res[0])
+    .then((res: Array<{ content: string; language: string }>) => res[0])
   
   if (!paste) return { error: 'Paste not found' }
   if (paste.language === 'markdown') return { error: 'Cannot re-theme markdown' }
@@ -68,8 +71,10 @@ export async function updateUsername(username: string) {
   try {
     await db.update(users).set({ name: username }).where(eq(users.id, session.user.id))
     return { success: true }
-  } catch(e: any) {
-    if (e.message?.includes('unique') || e.code === '23505') return { error: 'Username taken' }
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : ''
+    const code = typeof e === 'object' && e !== null && 'code' in e ? String(e.code) : ''
+    if (message.includes('unique') || code === '23505') return { error: 'Username taken' }
     return { error: 'Failed to save' }
   }
 }
@@ -78,7 +83,12 @@ export async function getSessionUserProfile() {
   const session = await auth()
   if (!session?.user?.id) return null
   
-  const user = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1).then((r: typeof users.$inferSelect[]) => r[0])
+  const user = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1)
+    .then((r: UserRow[]) => r[0])
   return user
 }
 

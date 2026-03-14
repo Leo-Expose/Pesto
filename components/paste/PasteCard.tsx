@@ -11,7 +11,7 @@ interface PasteCardProps {
 }
 
 export function PasteCard({ paste, showDelete, onDelete }: PasteCardProps) {
-  const dateObj = new Date(paste.created_at || (paste as any).createdAt)
+  const dateObj = new Date(paste.created_at || paste.createdAt || new Date().toISOString())
   const createdAt = isNaN(dateObj.getTime()) 
     ? '' 
     : dateObj.toLocaleDateString('en-US', {

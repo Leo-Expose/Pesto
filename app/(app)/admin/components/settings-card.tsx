@@ -40,7 +40,7 @@ export function SettingsCard({ initialSettings }: SettingsProps) {
   const [isPending, setIsPending] = useState<string | null>(null)
 
   // Instance settings
-  const [instanceName, setInstanceName] = useState(initialSettings.instanceName)
+  const [instanceName] = useState(initialSettings.instanceName)
   const [defaultTheme, setDefaultTheme] = useState(initialSettings.defaultTheme)
   const [maxPasteSize, setMaxPasteSize] = useState(initialSettings.maxPasteSize)
   const [instanceSaved, setInstanceSaved] = useState(false)

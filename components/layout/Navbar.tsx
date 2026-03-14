@@ -2,10 +2,9 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { useTheme } from 'next-themes'
-import { Code2, Plus, FolderOpen, Settings, LogOut, LogIn, Shield, Sun, Moon, User as UserIcon } from 'lucide-react'
+import { Code2, Plus, FolderOpen, LogOut, LogIn, Shield, Sun, Moon, User as UserIcon } from 'lucide-react'
 import type { Profile } from '@/types'
 
 interface NavbarProps {
@@ -14,11 +13,13 @@ interface NavbarProps {
 }
 
 export function Navbar({ user, profile }: NavbarProps) {
-  const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setMounted(true))
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/' })

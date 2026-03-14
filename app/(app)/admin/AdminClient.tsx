@@ -10,7 +10,7 @@ interface AdminPaste {
   id: string
   title: string
   alias: string
-  visibility: 'public' | 'unlisted' | 'private'
+  visibility: 'public' | 'unlisted' | 'private' | 'password'
   language: string
   created_at: string
   views: number

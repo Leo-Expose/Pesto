@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Workaround for Windows NTFS drives where fs.readlink() returns EISDIR
 // instead of EINVAL for non-symlink files. This crashes Webpack's
 // enhanced-resolve module during Next.js builds.

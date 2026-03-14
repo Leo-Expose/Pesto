@@ -35,7 +35,7 @@ export async function GET() {
       enableGoogle: settings[0].enableGoogle,
       setupCompleted: settings[0].setupCompleted,
     })
-  } catch (error) {
+  } catch {
     // DB not ready
     return NextResponse.json({
       allowRegistrations: true,

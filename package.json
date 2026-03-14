@@ -6,7 +6,7 @@
     "dev": "cross-env NODE_OPTIONS=--require=./scripts/fs-patch.js next dev --webpack",
     "build": "cross-env NODE_OPTIONS=--require=./scripts/fs-patch.js next build --webpack",
     "postbuild": "node -e \"const fs=require('fs'); try{fs.cpSync('public', '.next/standalone/public', {recursive:true, force:true}); fs.cpSync('.next/static', '.next/standalone/.next/static', {recursive:true, force:true});}catch(e){}\"",
-    "start": "cross-env NODE_OPTIONS=--require=./scripts/fs-patch.js NODE_ENV=production node --env-file=.env.local .next/standalone/server.js",
+    "start": "cross-env NODE_OPTIONS=--require=./scripts/fs-patch.js NODE_ENV=production node --env-file=.env.local ./scripts/start-production.js",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",

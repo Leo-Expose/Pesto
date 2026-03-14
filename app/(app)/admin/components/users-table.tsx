@@ -19,8 +19,8 @@ export function UsersTable({ users }: { users: User[] }) {
     setIsPending(userId)
     try {
       await updateUserRole(userId, currentRole)
-    } catch (e: any) {
-      alert(e.message || 'Failed to update role')
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to update role')
     } finally {
       setIsPending(null)
     }
@@ -32,8 +32,8 @@ export function UsersTable({ users }: { users: User[] }) {
     setIsPending(userId)
     try {
       await deleteUser(userId)
-    } catch (e: any) {
-      alert(e.message || 'Failed to delete user')
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to delete user')
     } finally {
       setIsPending(null)
     }
@@ -47,9 +47,9 @@ export function UsersTable({ users }: { users: User[] }) {
     try {
       await createUser(formData)
       setShowAddForm(false)
-      ;(e.target as HTMLFormElement).reset()
-    } catch (e: any) {
-        alert(e.message || 'Failed to create user')
+      e.currentTarget.reset()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to create user')
     } finally {
       setIsPending(null)
     }

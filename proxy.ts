@@ -1,7 +1,7 @@
 import NextAuth from "next-auth"
 import { authConfig } from "./auth.config"
 import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { isSetupModeEnabled, isSetupRequestAllowed } from "@/lib/setupAccess"
 
 const { auth } = NextAuth(authConfig)
 
@@ -10,24 +10,29 @@ const PROTECTED_ROUTES = ['/new', '/my-pastes', '/settings', '/admin']
 export default auth((req) => {
   const { pathname } = req.nextUrl
 
-  // Always allow static assets
   if (pathname.startsWith('/_next')) {
     return NextResponse.next()
   }
 
-  // Protect /setup behind SETUP_MODE env var
   if (pathname.startsWith('/setup') || pathname.startsWith('/api/setup')) {
-    if (process.env.SETUP_MODE !== 'true') {
+    if (!isSetupModeEnabled()) {
       const url = req.nextUrl.clone()
       url.pathname = '/'
       return NextResponse.redirect(url)
     }
+
+    if (!isSetupRequestAllowed(req)) {
+      return new NextResponse(
+        'Setup mode is only reachable from localhost or a private network unless SETUP_ALLOW_REMOTE=true is explicitly set.',
+        { status: 403 }
+      )
+    }
+
     return NextResponse.next()
   }
 
-  // If DATABASE_URL is not configured and we don't have the setup_completed cookie
   if (!process.env.DATABASE_URL && !req.cookies.has('setup_completed')) {
-    if (process.env.SETUP_MODE !== 'true') {
+    if (!isSetupModeEnabled()) {
       return new NextResponse('Database is not configured. Please run "npm run setup" to configure Pesto.', { status: 503 })
     }
 
@@ -39,7 +44,6 @@ export default auth((req) => {
     return NextResponse.next()
   }
 
-  // Standard auth protection
   const isProtected = PROTECTED_ROUTES.some((route) =>
     pathname.startsWith(route)
   )
@@ -51,7 +55,6 @@ export default auth((req) => {
     return NextResponse.redirect(url)
   }
 
-  // Protect /admin routes specifically
   if (pathname.startsWith('/admin')) {
     if (req.auth?.user?.role !== 'admin') {
       const url = req.nextUrl.clone()
@@ -60,7 +63,6 @@ export default auth((req) => {
     }
   }
 
-  // Redirect logged-in users away from /login
   if (pathname === '/login' && req.auth) {
     const redirectPath = req.nextUrl.searchParams.get('redirect') || '/new'
     return NextResponse.redirect(new URL(redirectPath, req.url))

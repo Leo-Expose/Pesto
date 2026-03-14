@@ -1,99 +1,155 @@
 # Pesto
 
-A minimalistic, elegant pastebin built for self-hosting. Share your code securely with simplicity in mind.
+Pesto is a self-hosted pastebin built with Next.js, Auth.js, Drizzle ORM, and PostgreSQL.
 
-## 🌟 Features
+## Features
 
-- 🔒 **Database Agnostic** — Powered by Drizzle ORM + Auth.js. Run on ANY PostgreSQL server (local, Supabase, Neon, RDS).
-- 🧙 **Web Setup Wizard** — No manual `.env` editing. Navigate to `/setup` and configure everything from your browser.
-- 🎨 **Premium UI** — Modern dark/light mode, glassmorphism, VS Code syntax themes.
-- 🧑‍💻 **CodeMirror Editor** — Real code editor with auto-closing brackets and indentation.
-- ✨ **Markdown Support** — Auto-detect and render markdown with syntax-highlighted code blocks.
-- 🔐 **Password Protection** — Lock pastes behind a password.
-- 🔥 **Burn After Reading** — Single-view self-destructing pastes.
-- 🍴 **Fork Pastes** — Fork any public paste to make your own version.
-- 🛡️ **Admin Dashboard** — Manage users, toggle OAuth providers, control registrations.
-- 🚦 **Rate Limiting** — Built-in fallback + optional Upstash Redis.
-- ⏱️ **Auto Expiry** — Pastes can self-destruct after 1h, 1d, 7d, or 30d.
+- Browser-based setup wizard for first-time installation
+- Credentials auth with optional GitHub and Google OAuth
+- Admin dashboard for registrations, users, and provider toggles
+- Markdown rendering and syntax-highlighted code pastes
+- Password-protected and burn-after-reading pastes
+- Optional Upstash Redis rate limiting with in-memory fallback
 
-## 🛠 Tech Stack
+## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 15 (App Router, React 19) |
-| Styling | Tailwind CSS v4, Lucide Icons |
-| Database | Drizzle ORM (PostgreSQL) |
-| Auth | Auth.js v5 (Credentials + GitHub + Google) |
-| Rate Limiting | Upstash Redis (optional, has in-memory fallback) |
+| --- | --- |
+| Framework | Next.js 16, React 19 |
+| Database | PostgreSQL + Drizzle ORM |
+| Auth | Auth.js v5 |
 | Editor | CodeMirror 6 |
-| Highlighting | Shiki (WASM) |
+| Highlighting | Shiki |
+| Styling | Tailwind CSS v4 |
 
----
+## Quick Start
 
-## 🚀 Quick Start
+### 1. Clone and install
 
-### 1. Clone & Install
 ```bash
 git clone https://github.com/yourusername/pesto.git
 cd pesto
 npm install
 ```
 
-### 2. Run the Setup Wizard
+### 2. Start first-run setup mode
+
+```bash
+npm run setup
+```
+
+This command starts the app with `SETUP_MODE=true`. That is required for `/setup` and `/api/setup/*`.
+
+### 3. Open the setup wizard
+
+Visit `http://localhost:3000/setup`.
+
+The wizard performs these steps:
+
+1. Tests your PostgreSQL connection string
+2. Writes `DATABASE_URL` and `AUTH_SECRET` to `.env.local`
+3. Pushes the Drizzle schema into the database
+4. Creates the first admin account
+5. Optionally writes OAuth credentials to `.env.local`
+
+### 4. Exit setup mode
+
+After the wizard finishes:
+
+```bash
+Ctrl+C
+npm run dev
+```
+
+`npm run dev` runs the app normally without `SETUP_MODE=true`. Do not keep setup mode enabled for normal operation.
+
+### 5. Sign in as admin
+
+Open `http://localhost:3000/login` and sign in with the admin account created during setup.
+
+## Setup Security
+
+Setup access is intentionally restricted.
+
+- `/setup` and `/api/setup/*` only work when `SETUP_MODE=true`
+- While setup mode is enabled, setup routes are also restricted to `localhost` or private-network addresses by default
+- Forwarded proxy headers are ignored unless `SETUP_TRUST_PROXY=true`
+- If you intentionally need remote setup behind your own controls, set `SETUP_ALLOW_REMOTE=true`
+- After setup is completed, setup stays closed unless `SETUP_REOPEN=true` is explicitly set
+
+That means a fresh install should be started with `npm run setup`, not `npm run dev`.
+
+## Normal Development
+
+After initial setup:
+
 ```bash
 npm run dev
 ```
-Then open **http://localhost:3000/setup** in your browser. The wizard will guide you through:
-1. **Database** — Enter and test your PostgreSQL connection string
-2. **Schema** — Initialize all database tables automatically
-3. **Admin** — Create your administrator account
-4. **OAuth** — Optionally configure GitHub/Google sign-in
 
-### 3. Start Using Pesto
-After setup, log in at `/login` with your admin credentials. You're done!
+If `.env.local` already contains a valid `DATABASE_URL`, the app starts normally and the setup wizard stays unavailable.
 
----
+## Production Start
 
-## 🐳 Docker
+Build and run after setup has already been completed:
+
+```bash
+npm run build
+npm start
+```
+
+Production should not be started with `SETUP_MODE=true` unless an administrator is intentionally performing a controlled setup window.
+
+## Docker
+
+For first boot, run the container with `SETUP_MODE=true`, complete the wizard, then restart without it.
+
+Example:
 
 ```bash
 docker build -t pesto .
-docker run -p 3000:3000 -v ./attachments:/app/public/attachments pesto
+docker run --rm -it -p 3000:3000 -e SETUP_MODE=true -v ${PWD}/.env.local:/app/.env.local pesto
 ```
 
-Then navigate to `http://localhost:3000/setup` to complete configuration.
+Complete setup at `http://localhost:3000/setup`, stop the container, then run it again without `SETUP_MODE=true`.
 
-See **[WIKI.md](WIKI.md)** for a full Docker Compose example with PostgreSQL.
+See [WIKI.md](/E:/Pesto/WIKI.md) and [SETUP.md](/E:/Pesto/SETUP.md) for full operational guidance.
 
----
+## Environment Variables
 
-## ⚙️ Admin Controls
+### Required after setup
 
-From the Admin Dashboard (`/admin`), you can:
-- **Toggle GitHub/Google OAuth** on or off (buttons hide from login page instantly)
-- **Enable/Disable user registrations**
-- **Manage users** — promote to admin, ban, or delete
-- **Delete any paste** globally
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `AUTH_SECRET` | Session/auth secret |
 
----
+### Optional application variables
 
-## 📄 Environment Variables
+| Variable | Purpose |
+| --- | --- |
+| `AUTH_GITHUB_ID` | GitHub OAuth client ID |
+| `AUTH_GITHUB_SECRET` | GitHub OAuth client secret |
+| `AUTH_GOOGLE_ID` | Google OAuth client ID |
+| `AUTH_GOOGLE_SECRET` | Google OAuth client secret |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis URL |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis token |
+| `CRON_SECRET` | Secret for `/api/cron/cleanup` |
 
-All variables are auto-generated by the setup wizard. If you prefer manual configuration:
+### Setup-only variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `AUTH_SECRET` | ✅ | Auto-generated session secret |
-| `AUTH_GITHUB_ID` | ❌ | GitHub OAuth Client ID |
-| `AUTH_GITHUB_SECRET` | ❌ | GitHub OAuth Client Secret |
-| `AUTH_GOOGLE_ID` | ❌ | Google OAuth Client ID |
-| `AUTH_GOOGLE_SECRET` | ❌ | Google OAuth Client Secret |
-| `UPSTASH_REDIS_REST_URL` | ❌ | Redis URL for rate limiting |
-| `UPSTASH_REDIS_REST_TOKEN` | ❌ | Redis token |
-| `CRON_SECRET` | ❌ | Secret for cleanup cron endpoint |
+| Variable | Purpose |
+| --- | --- |
+| `SETUP_MODE` | Enables the setup wizard and setup API routes |
+| `SETUP_TRUST_PROXY` | Trusts `X-Forwarded-*` headers when evaluating setup access |
+| `SETUP_ALLOW_REMOTE` | Overrides the default local/private-network-only setup restriction |
+| `SETUP_REOPEN` | Reopens setup after completion for deliberate maintenance or recovery |
 
----
+## Documentation
 
-## 📄 License
+- [SETUP.md](/E:/Pesto/SETUP.md): detailed installation and setup operations
+- [WIKI.md](/E:/Pesto/WIKI.md): deployment, Docker, operations, and troubleshooting
+
+## License
+
 MIT

@@ -1,9 +1,19 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
+import { isSetupRequestAllowed } from '@/lib/setupAccess'
+import { isSetupLocked } from '@/lib/setupState'
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!isSetupRequestAllowed(req)) {
+    return NextResponse.json({ error: 'Setup is not accessible from this network location.' }, { status: 403 })
+  }
+
+  if (await isSetupLocked()) {
+    return NextResponse.json({ error: 'Setup has already been completed. Set SETUP_REOPEN=true to reopen it intentionally.' }, { status: 403 })
+  }
+
   try {
     const { connectionString } = await req.json()
     if (!connectionString) {
@@ -46,11 +56,20 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json({ success: true, message: 'Schema pushed successfully!' })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const details =
+      typeof error === 'object' &&
+      error !== null &&
+      'stderr' in error &&
+      typeof (error as { stderr?: { toString(): string } }).stderr?.toString === 'function'
+        ? (error as { stderr?: { toString(): string } }).stderr?.toString()
+        : error instanceof Error
+          ? error.message
+          : 'Unknown error'
     console.error('Schema push failed:', error)
     return NextResponse.json({
       error: 'Schema push failed',
-      details: error.stderr?.toString() || error.message || 'Unknown error'
+      details
     }, { status: 500 })
   }
 }

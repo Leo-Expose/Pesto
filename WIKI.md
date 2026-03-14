@@ -1,19 +1,37 @@
-# Self-Hosting Pesto — Detailed Guide
+# Pesto Wiki
 
-Pesto is designed to be **fully self-hostable** with zero cloud lock-in. Connect to any PostgreSQL database, configure everything from a web browser, and deploy via Docker or bare-metal.
+This document covers operational deployment, admin setup flow, Docker usage, and troubleshooting.
 
----
+For a step-by-step first-install guide, see [SETUP.md](/E:/Pesto/SETUP.md).
 
-## Prerequisites
-- **Node.js 20+** (or Docker)
-- **PostgreSQL 14+** (local, Supabase, Neon, RDS, etc.)
-- *Optional:* Upstash Redis for distributed rate limiting
+## Operational Model
 
----
+Pesto has two distinct runtime modes:
 
-## Method 1: Web Setup Wizard (Recommended)
+1. Setup mode
+   Run with `SETUP_MODE=true` so an administrator can access `/setup` exactly long enough to initialize the instance.
+2. Normal mode
+   Run without `SETUP_MODE=true` for day-to-day use.
 
-The easiest way to get started:
+These modes are intentionally separate. The setup wizard is not part of normal app usage.
+
+## Admin-Only Setup Sequence
+
+Use this sequence for every fresh deployment:
+
+1. Start the app in setup mode.
+2. Open `/setup` as an administrator.
+3. Configure database access, push schema, and create the first admin user.
+4. Stop the app.
+5. Remove `SETUP_MODE=true`.
+6. Start the app normally.
+7. Sign in through `/login` and manage the instance from `/admin`.
+
+If you skip step 5 and leave setup mode enabled, the setup surface remains available. The app now restricts setup access to localhost or private-network addresses by default, but normal operation should still run with setup mode disabled.
+
+## Local Deployment
+
+### First boot
 
 ```bash
 git clone https://github.com/yourusername/pesto.git
@@ -22,94 +40,151 @@ npm install
 npm run setup
 ```
 
-Open **http://localhost:3000/setup** and follow the 4-step wizard:
+Then open `http://localhost:3000/setup`.
 
-| Step | What It Does |
-|------|-------------|
-| 1. Database | Enter your PostgreSQL connection string, test it live |
-| 2. Schema | Creates all tables automatically via Drizzle ORM |
-| 3. Admin | Set your admin email and password |
-| 4. OAuth | Optionally enable GitHub/Google sign-in |
+The setup wizard will:
 
-After completing setup, the wizard writes everything to `.env.local` and initializes the database. You'll be redirected to the login page.
+- test the PostgreSQL connection
+- write `DATABASE_URL` and `AUTH_SECRET` to `.env.local`
+- push the database schema
+- create or promote the first admin account
+- optionally write OAuth client credentials
 
----
+### After setup completes
 
-## Method 2: Manual Configuration
+Stop the setup server and restart normally:
 
-Create `.env.local` at the project root:
+```bash
+Ctrl+C
+npm run dev
+```
+
+At this point:
+
+- `/setup` should no longer be used
+- `/login` is the correct entry point
+- `/admin` becomes the control plane for the instance
+
+## Production Deployment
+
+Production setup should be handled as a short, controlled administrative window.
+
+Recommended pattern:
+
+1. Deploy the app with `SETUP_MODE=true`
+2. Keep the instance reachable only from trusted hosts or a private network
+3. Complete `/setup`
+4. Restart the process without `SETUP_MODE=true`
+5. Expose the normal application
+
+Do not treat setup mode as a permanent production flag.
+
+## Setup Route Hardening
+
+Setup routes are protected by two layers:
+
+1. `SETUP_MODE=true` must be present
+2. Requests must originate from localhost or a private-network address by default
+3. Once setup has been completed, setup routes stay closed unless `SETUP_REOPEN=true`
+
+Covered routes:
+
+- `/setup`
+- `/api/setup/test-db`
+- `/api/setup/push-schema`
+- `/api/setup/complete`
+
+### Remote setup override
+
+If you intentionally need remote setup, you can set:
 
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/pesto"
-AUTH_SECRET="run: openssl rand -base64 32"
-
-# Optional: OAuth Providers
-AUTH_GITHUB_ID="your_github_client_id"
-AUTH_GITHUB_SECRET="your_github_client_secret"
-AUTH_GOOGLE_ID="your_google_id"
-AUTH_GOOGLE_SECRET="your_google_secret"
-
-# Optional: Rate Limiting
-UPSTASH_REDIS_REST_URL="your_redis_url"
-UPSTASH_REDIS_REST_TOKEN="your_redis_token"
-
-# Optional: Cron Cleanup
-CRON_SECRET="your_secure_secret"
+SETUP_ALLOW_REMOTE=true
 ```
 
-Push the schema:
+Only use this behind controls you trust, such as:
+
+- VPN-only access
+- a temporary reverse proxy allowlist
+- a private admin subnet
+- a one-time maintenance window
+
+### Proxy trust
+
+Forwarded headers such as `X-Forwarded-For` and `X-Forwarded-Host` are ignored by default during setup access checks.
+
+If Pesto is behind a trusted reverse proxy and you want setup access decisions to use those forwarded values, set:
+
+```env
+SETUP_TRUST_PROXY=true
+```
+
+Only enable this if the proxy is authoritative for those headers.
+
+### Reopening setup after completion
+
+After `app_settings.setup_completed` is set, setup routes are denied even if `SETUP_MODE=true` remains present.
+
+To deliberately reopen setup for recovery or maintenance, set:
+
+```env
+SETUP_REOPEN=true
+```
+
+This should be temporary and operator-controlled.
+
+## Environment File Behavior
+
+The setup flow writes to `.env.local`.
+
+What the wizard writes automatically:
+
+- `DATABASE_URL`
+- `AUTH_SECRET`
+- optional GitHub OAuth credentials
+- optional Google OAuth credentials
+
+What it does not do automatically:
+
+- disable `SETUP_MODE`
+- set `SETUP_REOPEN`
+- restart the process
+- configure your reverse proxy or TLS
+- provision PostgreSQL itself
+
+That shutdown and restart boundary is intentional. Environment values written during setup should be followed by a controlled restart into normal mode.
+
+## Docker
+
+### First-run container flow
+
+Run with `SETUP_MODE=true` only for initialization:
+
 ```bash
-npx drizzle-kit push
+docker build -t pesto .
+docker run --rm -it ^
+  -p 3000:3000 ^
+  -e SETUP_MODE=true ^
+  -v ${PWD}\.env.local:/app/.env.local ^
+  -v ${PWD}\attachments:/app/public/attachments ^
+  pesto
 ```
 
-Start the server:
-```bash
-npm run build && npm start
-```
+Complete setup at `http://localhost:3000/setup`, stop the container, then start a normal container without `SETUP_MODE=true`.
 
-Create an admin user via SQL:
-```sql
--- First register normally at /login, then promote:
-UPDATE "user" SET role = 'admin' WHERE email = 'your@email.com';
-```
+### Docker Compose example
 
----
-
-## Docker Deployment
-
-### Dockerfile
-```dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-
-EXPOSE 3000
-CMD ["node", "server.js"]
-```
-
-### Docker Compose
 ```yaml
-version: '3.8'
 services:
   pesto:
     build: .
     ports:
       - "3000:3000"
     environment:
-      - SETUP_MODE=true
+      SETUP_MODE: "true"
     volumes:
-      - ./attachments:/app/public/attachments
       - ./.env.local:/app/.env.local
+      - ./attachments:/app/public/attachments
     depends_on:
       - db
 
@@ -117,62 +192,90 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: pesto
-      POSTGRES_PASSWORD: your_secure_password
+      POSTGRES_PASSWORD: change_me
       POSTGRES_DB: pesto
     volumes:
       - pesto_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
 
 volumes:
   pesto_data:
 ```
 
-After `docker compose up`, navigate to `http://localhost:3000/setup` to complete configuration. Once configured, you can safely remove `SETUP_MODE=true` to secure the setup route.
+After setup, change the Compose environment so `SETUP_MODE` is removed, then recreate the `pesto` service.
 
----
+## Manual Configuration
 
-## Admin Dashboard
+If you do not want to use the wizard, create `.env.local` manually:
 
-Access `/admin` to:
-- **Toggle GitHub/Google sign-in** — buttons instantly hide/show on login page
-- **Enable/Disable registrations** — prevent new signups
-- **Manage users** — promote, ban, or delete
-- **Delete pastes globally**
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/pesto"
+AUTH_SECRET="replace-with-a-random-secret"
 
----
+# Optional
+AUTH_GITHUB_ID=""
+AUTH_GITHUB_SECRET=""
+AUTH_GOOGLE_ID=""
+AUTH_GOOGLE_SECRET=""
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
+CRON_SECRET=""
+```
 
-## File Attachments
-
-Images uploaded via the paste editor are stored locally at `public/attachments/`. When using Docker, map this to a persistent volume to keep uploads across restarts.
-
----
-
-## Automated Cleanup
-
-Set up a cron job to clean expired pastes:
+Push the schema:
 
 ```bash
-# Set CRON_SECRET in .env.local
+npx drizzle-kit push
+```
+
+Then start normally:
+
+```bash
+npm run build
+npm start
+```
+
+To create an admin manually, first register through the app and then promote that user in PostgreSQL.
+
+## Admin Operations
+
+Once setup is complete, `/admin` is where operators should manage the instance.
+
+Available controls include:
+
+- registration toggle
+- GitHub login enable/disable
+- Google login enable/disable
+- user moderation and role changes
+- global paste management
+
+## Storage Notes
+
+Uploaded attachments are stored in `public/attachments`.
+
+In containers or hosted deployments, mount that path to persistent storage or uploads will be lost on replacement or rebuild.
+
+## Cleanup Job
+
+If you enable scheduled cleanup, set `CRON_SECRET` and call the cleanup endpoint with bearer auth:
+
+```bash
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/cron/cleanup
+```
+
+Example cron:
+
+```bash
 0 * * * * curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/cron/cleanup
 ```
 
----
-
-## Linux Compatibility
-
-Pesto uses Node.js `path.join()` and `process.cwd()` throughout — no Windows-specific path separators. Tested on:
-- Ubuntu 22.04 / 24.04
-- Alpine Linux (Docker)
-- Debian 12
-
----
-
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|---------|
-| `ECONNREFUSED` on startup | `DATABASE_URL` not set or DB unreachable. Navigate to `/setup`. |
-| OAuth buttons not showing | Enable them in Admin → Settings, ensure env vars are set |
-| `drizzle-kit push` fails | Check your `DATABASE_URL` and ensure the DB is running |
-| Uploads lost on restart | Mount `public/attachments` as a Docker volume |
+| Symptom | Likely Cause | Action |
+| --- | --- | --- |
+| `/setup` redirects away immediately | App started without setup mode | Start with `npm run setup` or `SETUP_MODE=true` |
+| `/setup` returns 403 during setup mode | Request is coming from a public host or public client IP | Use localhost/private-network access or explicitly set `SETUP_ALLOW_REMOTE=true` |
+| `/setup` redirects to `/login` even with setup mode enabled | Setup was already completed | Leave setup closed, or set `SETUP_REOPEN=true` for a deliberate maintenance window |
+| App returns 503 saying database is not configured | No `DATABASE_URL` and setup mode is disabled | Run the setup flow or create `.env.local` manually |
+| OAuth buttons do not appear | Provider disabled in admin settings or credentials missing | Check `/admin` and verify env values |
+| Schema push fails | DB is unreachable or credentials are wrong | Re-test the connection string and verify PostgreSQL availability |
+| Uploads disappear after restart | Attachment storage is not persistent | Mount `public/attachments` to persistent storage |

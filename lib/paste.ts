@@ -4,7 +4,7 @@ import { eq, desc, and, sql, type InferSelectModel, max } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { generateAlias } from '@/lib/alias'
 import { hash } from 'bcrypt-ts'
-import type { Paste, PasteWithAuthor } from '@/types'
+import type { Paste, PasteWithAuthor, PasteVisibility } from '@/types'
 import type { CreatePasteInput, UpdatePasteInput } from '@/lib/validators'
 
 type PasteRow = InferSelectModel<typeof pastes>
@@ -16,6 +16,43 @@ const EXPIRY_MAP: Record<string, number> = {
   '1d': 24 * 60 * 60 * 1000,
   '7d': 7 * 24 * 60 * 60 * 1000,
   '30d': 30 * 24 * 60 * 60 * 1000,
+}
+
+function toPaste(row: PasteRow): Paste {
+  const { passwordHash: omittedPasswordHash } = row
+  void omittedPasswordHash
+
+  return {
+    id: row.id,
+    user_id: row.userId,
+    userId: row.userId,
+    title: row.title,
+    content: row.content,
+    language: row.language,
+    alias: row.alias,
+    visibility: row.visibility as PasteVisibility,
+    burn_after_reading: row.burnAfterReading ?? false,
+    burnAfterReading: row.burnAfterReading ?? false,
+    forked_from: row.forkedFrom ?? null,
+    forkedFrom: row.forkedFrom ?? null,
+    expires_at: row.expiresAt?.toISOString() ?? null,
+    expiresAt: row.expiresAt?.toISOString() ?? null,
+    created_at: row.createdAt?.toISOString() ?? new Date().toISOString(),
+    createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
+    views: row.views ?? 0,
+  }
+}
+
+function toPasteWithAuthor(
+  row: PasteRow,
+  author: UserRow | null,
+  parent?: { alias: string | null; title: string | null } | null
+): PasteWithAuthor {
+  return {
+    ...toPaste(row),
+    author: author?.name ? { username: author.name } : null,
+    parent: parent?.alias ? { alias: parent.alias, title: parent.title ?? 'Untitled' } : null,
+  }
 }
 
 export async function createPaste(
@@ -45,10 +82,15 @@ export async function createPaste(
       forkedFrom: data.forked_from || null,
       expiresAt,
     })
-  } catch (error: any) {
-    const dbError = error.cause || error
-    if (dbError.code === '23505') throw new Error('ALIAS_TAKEN')
-    throw new Error(`Database error: ${dbError.message || error.message}`)
+  } catch (error: unknown) {
+    const dbError = typeof error === 'object' && error !== null && 'cause' in error
+      ? error.cause
+      : error
+    const code = typeof dbError === 'object' && dbError !== null && 'code' in dbError ? String(dbError.code) : ''
+    const message = dbError instanceof Error ? dbError.message : error instanceof Error ? error.message : 'Unknown error'
+
+    if (code === '23505') throw new Error('ALIAS_TAKEN')
+    throw new Error(`Database error: ${message}`)
   }
 
   return { alias: pasteAlias }
@@ -58,39 +100,33 @@ export async function getPasteByAlias(
   pasteAlias: string,
   userId?: string | null
 ): Promise<PasteWithAuthor | null> {
+  void userId
   const parentPastes = alias(pastes, 'parentPastes')
 
   const result = await db
     .select({
       paste: pastes,
       author: users,
-      parent: { alias: parentPastes.alias, title: parentPastes.title }
+      parent: { alias: parentPastes.alias, title: parentPastes.title },
     })
     .from(pastes)
     .leftJoin(users, eq(pastes.userId, users.id))
     .leftJoin(parentPastes, eq(pastes.forkedFrom, parentPastes.id))
     .where(eq(pastes.alias, pasteAlias.toLowerCase()))
     .limit(1)
-    .then((res: { paste: PasteRow; author: UserRow | null; parent: { alias: string | null; title: string | null } }[]) => res[0])
+    .then((rows: Array<{
+      paste: PasteRow
+      author: UserRow | null
+      parent: { alias: string | null; title: string | null } | null
+    }>) => rows[0])
 
-  if (!result || !result.paste) return null
+  if (!result?.paste) return null
 
-  const data = result.paste
-
-  // Check if expired
-  if (data.expiresAt && new Date(data.expiresAt) < new Date()) {
+  if (result.paste.expiresAt && new Date(result.paste.expiresAt) < new Date()) {
     return null
   }
 
-  const { passwordHash: _, ...rest } = data
-
-  const paste: PasteWithAuthor = {
-    ...rest,
-    author: result.author && result.author.name ? { username: result.author.name } : null,
-    parent: result.parent?.alias ? { alias: result.parent.alias, title: result.parent.title } : null,
-  } as unknown as PasteWithAuthor
-
-  return paste
+  return toPasteWithAuthor(result.paste, result.author, result.parent)
 }
 
 export async function updatePaste(
@@ -98,17 +134,15 @@ export async function updatePaste(
   userId: string,
   data: UpdatePasteInput
 ): Promise<Paste | null> {
-  // 1. Fetch current paste before updating (for version snapshot)
   const current = await db
     .select()
     .from(pastes)
     .where(and(eq(pastes.alias, pasteAlias.toLowerCase()), eq(pastes.userId, userId)))
     .limit(1)
-    .then((res: PasteRow[]) => res[0])
+    .then((rows: PasteRow[]) => rows[0])
 
   if (!current) return null
 
-  // 2. Determine next version number
   const [maxVersionRow] = await db
     .select({ maxVersion: max(pasteVersions.version) })
     .from(pasteVersions)
@@ -116,7 +150,6 @@ export async function updatePaste(
 
   const nextVersion = (maxVersionRow?.maxVersion ?? 0) + 1
 
-  // 3. Snapshot current state into paste_versions
   await db.insert(pasteVersions).values({
     pasteId: current.id,
     title: current.title,
@@ -126,28 +159,25 @@ export async function updatePaste(
     editedBy: userId,
   })
 
-  // 4. Apply the update
-  let passwordHash: string | undefined = undefined
+  let passwordHash: string | undefined
   if (data.password) {
     passwordHash = await hash(data.password, 10)
   }
 
-  const { password, ...updateData } = data
+  const { password: omittedPassword, ...updateData } = data
+  void omittedPassword
 
   const updated = await db
     .update(pastes)
     .set({
       ...updateData,
-      ...(passwordHash ? { passwordHash } : {})
+      ...(passwordHash ? { passwordHash } : {}),
     })
     .where(and(eq(pastes.alias, pasteAlias.toLowerCase()), eq(pastes.userId, userId)))
     .returning()
-    .then((res: PasteRow[]) => res[0])
+    .then((rows: PasteRow[]) => rows[0])
 
-  if (!updated) return null
-
-  const { passwordHash: _, ...rest } = updated
-  return rest as unknown as Paste
+  return updated ? toPaste(updated) : null
 }
 
 export interface PasteVersion {
@@ -197,7 +227,7 @@ export async function getPasteVersion(pasteId: string, versionNumber: number): P
       eq(pasteVersions.version, versionNumber)
     ))
     .limit(1)
-    .then((res: { version: VersionRow; editor: { name: string | null } | null }[]) => res[0])
+    .then((rows: Array<{ version: VersionRow; editor: { name: string | null } | null }>) => rows[0])
 
   if (!result) return null
 
@@ -213,12 +243,11 @@ export async function getPasteVersion(pasteId: string, versionNumber: number): P
   }
 }
 
-
 export async function deletePaste(pasteAlias: string, userId: string): Promise<boolean> {
   await db
     .delete(pastes)
     .where(and(eq(pastes.alias, pasteAlias.toLowerCase()), eq(pastes.userId, userId)))
-  
+
   return true
 }
 
@@ -229,10 +258,7 @@ export async function listUserPastes(userId: string): Promise<Paste[]> {
     .where(eq(pastes.userId, userId))
     .orderBy(desc(pastes.createdAt))
 
-  return data.map((item: PasteRow) => {
-    const { passwordHash: _, ...rest } = item
-    return rest as unknown as Paste
-  })
+  return data.map((item: PasteRow) => toPaste(item))
 }
 
 export async function listPublicPastes(limitCount = 20): Promise<PasteWithAuthor[]> {
@@ -247,13 +273,9 @@ export async function listPublicPastes(limitCount = 20): Promise<PasteWithAuthor
     .orderBy(desc(pastes.createdAt))
     .limit(limitCount)
 
-  return data.map(({ paste, author }: { paste: PasteRow; author: UserRow | null }) => {
-    const { passwordHash: _, ...rest } = paste
-    return {
-      ...rest,
-      author: author && author.name ? { username: author.name } : null,
-    } as unknown as PasteWithAuthor
-  })
+  return data.map(({ paste, author }: { paste: PasteRow; author: UserRow | null }) =>
+    toPasteWithAuthor(paste, author)
+  )
 }
 
 export async function incrementViews(pasteAlias: string): Promise<void> {

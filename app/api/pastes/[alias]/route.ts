@@ -8,6 +8,18 @@ import { detectLanguage } from '@/lib/language'
 import { NextRequest } from 'next/server'
 
 type RouteParams = { params: Promise<{ alias: string }> }
+type RoleRow = { role: string | null }
+
+async function getUserRole(userId: string): Promise<string> {
+  const profile = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+    .then((rows: RoleRow[]) => rows[0])
+
+  return profile?.role || 'user'
+}
 
 export async function GET(_req: NextRequest, { params }: RouteParams): Promise<Response> {
   try {
@@ -20,15 +32,10 @@ export async function GET(_req: NextRequest, { params }: RouteParams): Promise<R
       return Response.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const userId = (paste as any).userId || (paste as any).user_id
+    const pasteUserId = paste.userId ?? paste.user_id
 
-    if (paste.visibility === 'private' && userId !== user?.id) {
-      let role = 'user'
-      if (user?.id) {
-        const profile = await db.select({ role: users.role }).from(users).where(eq(users.id, user.id)).limit(1).then((r: { role: string }[]) => r[0])
-        if (profile) role = profile.role || 'user'
-      }
-      
+    if (paste.visibility === 'private' && pasteUserId !== user?.id) {
+      const role = user?.id ? await getUserRole(user.id) : 'user'
       if (role !== 'admin') {
         return Response.json({ error: 'Not found' }, { status: 404 })
       }
@@ -60,21 +67,20 @@ export async function PATCH(req: NextRequest, { params }: RouteParams): Promise<
       )
     }
 
-    // Check ownership or admin
     const existing = await getPasteByAlias(alias, user.id)
     if (!existing) {
       return Response.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const pasteUserId = (existing as any).userId || (existing as any).user_id
-    let effUserId = user.id
+    const pasteUserId = existing.userId ?? existing.user_id
+    let effectiveUserId = user.id
 
     if (pasteUserId !== user.id) {
-      const profile = await db.select({ role: users.role }).from(users).where(eq(users.id, user.id)).limit(1).then((r: { role: string }[]) => r[0])
-      if (profile?.role !== 'admin') {
+      const role = await getUserRole(user.id)
+      if (role !== 'admin') {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
-      effUserId = pasteUserId
+      effectiveUserId = pasteUserId ?? user.id
     }
 
     if (result.data.language === 'auto') {
@@ -82,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams): Promise<
       result.data.language = detectLanguage(detectTarget)
     }
 
-    const updated = await updatePaste(alias, effUserId, result.data)
+    const updated = await updatePaste(alias, effectiveUserId, result.data)
     if (!updated) {
       return Response.json({ error: 'Update failed' }, { status: 500 })
     }
@@ -109,16 +115,16 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams): Promis
       return Response.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const pasteUserId = (existing as any).userId || (existing as any).user_id
+    const pasteUserId = existing.userId ?? existing.user_id
 
     if (pasteUserId !== user.id) {
-      const profile = await db.select({ role: users.role }).from(users).where(eq(users.id, user.id)).limit(1).then((r: { role: string }[]) => r[0])
-      if (profile?.role !== 'admin') {
+      const role = await getUserRole(user.id)
+      if (role !== 'admin') {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
-    await deletePaste(alias, pasteUserId)
+    await deletePaste(alias, pasteUserId ?? user.id)
     return new Response(null, { status: 204 })
   } catch (err) {
     console.error('DELETE /api/pastes/[alias] error:', err)

@@ -58,7 +58,7 @@ export default function LoginPage() {
         const redirectUrl = params.get('redirect') || '/new'
         window.location.href = redirectUrl
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred.")
       setIsLoading(false)
     }

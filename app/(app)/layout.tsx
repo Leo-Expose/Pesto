@@ -5,6 +5,9 @@ import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { Navbar } from '@/components/layout/Navbar'
 import type { Profile } from '@/types'
+import type { InferSelectModel } from 'drizzle-orm'
+
+type UserRow = InferSelectModel<typeof users>
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -17,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .from(users)
       .where(eq(users.id, user.id))
       .limit(1)
-      .then((res: any[]) => res[0])
+      .then((res: UserRow[]) => res[0])
 
     if (data) {
       profile = {

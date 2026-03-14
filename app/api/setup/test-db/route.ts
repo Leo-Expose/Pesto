@@ -1,7 +1,16 @@
-import { NextResponse } from 'next/server'
-import { execSync } from 'child_process'
+import { NextRequest, NextResponse } from 'next/server'
+import { isSetupRequestAllowed } from '@/lib/setupAccess'
+import { isSetupLocked } from '@/lib/setupState'
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!isSetupRequestAllowed(req)) {
+    return NextResponse.json({ error: 'Setup is not accessible from this network location.' }, { status: 403 })
+  }
+
+  if (await isSetupLocked()) {
+    return NextResponse.json({ error: 'Setup has already been completed. Set SETUP_REOPEN=true to reopen it intentionally.' }, { status: 403 })
+  }
+
   try {
     const { connectionString } = await req.json()
     if (!connectionString) {
@@ -17,11 +26,12 @@ export async function POST(req: Request) {
     await sql.end()
 
     return NextResponse.json({ success: true, message: 'Connection successful!' })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const details = error instanceof Error ? error.message : 'Could not connect to the database'
     console.error('DB test failed:', error)
     return NextResponse.json({ 
       error: 'Connection failed', 
-      details: error.message || 'Could not connect to the database'
+      details
     }, { status: 400 })
   }
 }

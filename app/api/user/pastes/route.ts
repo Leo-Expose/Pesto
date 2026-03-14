@@ -2,9 +2,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { pastes } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
-import { NextRequest } from 'next/server'
-
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   try {
     const session = await auth()
     const user = session?.user

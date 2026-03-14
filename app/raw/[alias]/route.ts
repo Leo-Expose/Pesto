@@ -6,6 +6,20 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
 type RouteParams = { params: Promise<{ alias: string }> }
+type RoleRow = { role: string | null }
+
+async function getUserRole(userId: string | undefined): Promise<string> {
+  if (!userId) return 'user'
+
+  const profile = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+    .then((rows: RoleRow[]) => rows[0])
+
+  return profile?.role || 'user'
+}
 
 export async function GET(_req: NextRequest, { params }: RouteParams): Promise<Response> {
   try {
@@ -18,15 +32,10 @@ export async function GET(_req: NextRequest, { params }: RouteParams): Promise<R
       return new Response('Not found', { status: 404 })
     }
 
-    const pasteUserId = (paste as any).userId || (paste as any).user_id
+    const pasteUserId = paste.userId ?? paste.user_id
 
     if (paste.visibility === 'private' && pasteUserId !== user?.id) {
-      let role = 'user'
-      if (user?.id) {
-        const profile = await db.select({ role: users.role }).from(users).where(eq(users.id, user.id)).limit(1).then((r: any[]) => r[0])
-        if (profile) role = profile.role || 'user'
-      }
-
+      const role = await getUserRole(user?.id)
       if (role !== 'admin') {
         return new Response('Not found', { status: 404 })
       }

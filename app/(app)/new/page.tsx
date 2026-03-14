@@ -11,6 +11,12 @@ import CodeMirror from '@uiw/react-codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { loadLanguageExtension } from '@/lib/codemirror-langs'
 import type { Extension } from '@codemirror/state'
+import type { z } from 'zod'
+import { CreatePasteSchema } from '@/lib/validators'
+
+type CreatePasteBody = z.input<typeof CreatePasteSchema>
+type CreatePasteVisibility = CreatePasteBody['visibility']
+type CreatePasteExpiry = CreatePasteBody['expiry']
 
 const LANGUAGES = [
   { value: 'auto', label: 'Auto Detect' },
@@ -139,7 +145,7 @@ export default function NewPastePage() {
       const markdownImage = `\n![attachment](${url})\n`
       setContent(prev => prev + markdownImage)
       if (language === 'auto' || language === 'text') setLanguage('markdown')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err)
       setError('Failed to upload image. Make sure you are logged in.')
     } finally {
@@ -189,7 +195,14 @@ export default function NewPastePage() {
         }
         router.push(`/p/${editAlias}`)
       } else {
-        const body: Record<string, any> = { title, content, language, visibility, expiry, burn_after_reading: burnAfterReading }
+        const body: CreatePasteBody = {
+          title,
+          content,
+          language,
+          visibility: visibility as CreatePasteVisibility,
+          expiry: expiry as CreatePasteExpiry,
+          burn_after_reading: burnAfterReading,
+        }
         if (alias.trim()) body.alias = alias.trim()
         if (visibility === 'password' && password) body.password = password
         if (forkedFromId) body.forked_from = forkedFromId
